@@ -43,6 +43,39 @@
     backdrop-filter: blur(6px);
   }
   #panel.hidden { display: none; }
+  #toggle {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 16px;
+    width: auto;
+    margin: 0;
+    padding: 6px 12px;
+    background: var(--panel-bg);
+    color: var(--panel-fg);
+    border: 1px solid rgba(255, 90, 31, 0.35);
+  }
+  .file {
+    display: block;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    border: 1px dashed rgba(255, 90, 31, 0.6);
+    text-align: center;
+    cursor: pointer;
+  }
+  .file input { display: none; }
+  @media (max-width: 600px) {
+    #panel {
+      left: 16px;
+      right: 16px;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+    #preview { width: 28vw; top: calc(16px + env(safe-area-inset-top, 0px)); }
+    .keys { display: none; }
+  }
   #panel h1 {
     margin: 0 0 4px;
     font-size: 15px;
@@ -105,10 +138,14 @@
 <body>
 <video id="preview" playsinline muted></video>
 
+<button id="toggle" type="button">Settings</button>
 <div id="panel">
   <h1>3D Desktop</h1>
   <div id="status">Move the mouse to look around, or turn on head tracking.</div>
   <button id="start">Start head tracking</button>
+  <label class="file">Load photo scene…
+    <input id="load" type="file" accept=".json,.js,.html,application/json,text/html,text/javascript">
+  </label>
   <label class="photo-only">Scene
     <select id="scene">
       <option value="photo">Photo</option>
@@ -122,7 +159,7 @@
     <input id="framing" type="number" min="0" max="1" step="0.05">
   </label>
   <label>Screen size (inches, diagonal)
-    <input id="diag" type="number" min="10" max="100" step="0.1">
+    <input id="diag" type="number" min="4" max="100" step="0.1">
   </label>
   <label>Webcam field of view (°)
     <input id="fov" type="number" min="30" max="120" step="1">
@@ -133,8 +170,8 @@
   <label class="check">Flip left/right <input id="flip" type="checkbox"></label>
   <label class="check">Show webcam <input id="showcam" type="checkbox"></label>
   <div class="hint">
-    <kbd>F</kbd> fullscreen · <kbd>H</kbd> hide this panel · <kbd>V</kbd> webcam preview.
-    The effect is meant for one eye or a webcam. Fullscreen it and sit about an arm's length away.
+    <span class="keys"><kbd>F</kbd> fullscreen · <kbd>H</kbd> hide this panel · <kbd>V</kbd> webcam preview.</span>
+    The effect is meant for one eye or a camera. Hold or sit about an arm's length away.
   </div>
 </div>
 
@@ -149,17 +186,16 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ---------------------------------------------------------------- settings
 
-const SCENE = window.SCENE;
+// Phones are held closer and have smaller screens and narrower front cameras.
+const isPhone = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
 const DEFAULTS = {
-  diag: 15.6, fov: 60, boost: 1.0, flip: false, showcam: true,
-  scene: SCENE ? 'photo' : 'grid', depth: 60, framing: SCENE?.focus ?? 0.5,
+  diag: isPhone ? 6.1 : 15.6, fov: isPhone ? 55 : 60, boost: 1.0, flip: false, showcam: true,
+  scene: 'photo', depth: isPhone ? 35 : 60, framing: window.SCENE?.focus ?? 0.5,
 };
 const settings = { ...DEFAULTS };
 try {
   Object.assign(settings, JSON.parse(localStorage.getItem('3d-desktop-settings') || '{}'));
 } catch {}
-if (!SCENE) settings.scene = 'grid';
-document.body.classList.toggle('has-photo', !!SCENE);
 
 // URL parameters override settings without saving them, e.g. ?diag=27&scene=grid.
 // ?record hides the UI and exposes window.setHead(x, y, z) for rendering videos.
@@ -176,8 +212,9 @@ function saveSettings() {
 }
 
 const IPD_CM = 6.3;          // average distance between pupils
-const WEBCAM_ABOVE_CM = 0.8; // webcam sits this far above the top edge of the screen
-const DEFAULT_HEAD = new THREE.Vector3(0, 0, 60);
+const WEBCAM_ABOVE_CM = isPhone ? 0 : 0.8; // camera sits this far above the top edge of the screen
+const VIEW_DISTANCE = isPhone ? 30 : 60;    // typical eye distance from the screen
+const DEFAULT_HEAD = new THREE.Vector3(0, 0, VIEW_DISTANCE);
 
 // Physical size of the browser window, assuming the window fills the display.
 function windowSizeCm() {
@@ -575,8 +612,8 @@ scene.add(meatball);
 // inpainted background and a cut-out foreground. Each vertex is pushed back
 // along the ray from a design eye position, so from straight in front the photo
 // looks untouched, and moving your head reveals real parallax.
-const DESIGN_EYE = 60; // cm in front of the screen
-const PHOTO_NEAR = 6;  // cm behind the screen for the nearest point in the photo
+const DESIGN_EYE = VIEW_DISTANCE;     // cm in front of the screen
+const PHOTO_NEAR = isPhone ? 3 : 6;   // cm behind the screen for the nearest point in the photo
 
 function buildPhotoScene(data) {
   const loader = new THREE.TextureLoader();
@@ -596,7 +633,7 @@ function buildPhotoScene(data) {
     uRect: { value: new THREE.Vector4() }, // centre x, centre y, width, height on the screen plane (cm)
     uEye: { value: DESIGN_EYE },
     uNear: { value: PHOTO_NEAR },
-    uFar: { value: 60 },
+    uFar: { value: settings.depth },
     uPad: { value: 0.25 },                 // mesh extends past the photo edges as a mirrored copy
   };
   const vertexShader = /* glsl */`
@@ -651,8 +688,48 @@ function buildPhotoScene(data) {
   return group;
 }
 
-const photo = SCENE ? buildPhotoScene(SCENE) : null;
-if (photo) scene.add(photo);
+let photo = null;
+
+function setPhoto(data) {
+  if (photo) {
+    scene.remove(photo);
+    photo.children.forEach(m => {
+      Object.values(m.material.uniforms).forEach(u => u.value?.isTexture && u.value.dispose());
+      m.material.dispose();
+    });
+    photo.children[0].geometry.dispose();
+  }
+  photo = buildPhotoScene(data);
+  scene.add(photo);
+  document.body.classList.add('has-photo');
+  layoutPhoto();
+  applyScene();
+}
+
+// A scene can come from scene.js next to this page, or from a file the viewer
+// loads (scene JSON, scene.js, or a standalone .html). Loaded scenes are kept in
+// this browser's IndexedDB, so the photo never leaves the device.
+function parseScene(text) {
+  const t = text.trim();
+  const json = t.startsWith('{') ? t
+    : t.match(/window\.SCENE\s*=\s*(\{[\s\S]*?\})\s*;\s*(?:<\/script>|$)/)?.[1];
+  const data = json && JSON.parse(json);
+  if (!data?.photo || !data?.background || !data?.depth) throw new Error('That file has no photo scene in it.');
+  return data;
+}
+function sceneStore(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open('3d-desktop', 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('scenes');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('scenes', mode);
+      const req = fn(tx.objectStore('scenes'));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+    };
+  });
+}
 
 // Cover the window with the photo (plus a margin for head movement), centred
 // vertically on the framing point.
@@ -668,8 +745,22 @@ function layoutPhoto() {
   uniforms.uFar.value = Math.max(settings.depth, PHOTO_NEAR + 1);
 }
 
+// A photo only has so much picture around its edges. Ease the eye position into
+// the range where the background still covers the screen, instead of showing
+// the mirrored edge as soon as you lean far to one side.
+const limitedHead = new THREE.Vector3();
+function limitForPhoto(h) {
+  const { uniforms } = photo.userData;
+  const r = uniforms.uRect.value, pad = uniforms.uPad.value, far = uniforms.uFar.value;
+  const scale = (DESIGN_EYE + far) / far;
+  const limX = Math.max(1, ((r.z - size.w) / 2 + 0.5 * pad * r.z) * scale);
+  const limY = Math.max(1, ((r.w - size.h) / 2 + 0.5 * pad * r.w) * scale);
+  return limitedHead.set(limX * Math.tanh(h.x / limX), limY * Math.tanh(h.y / limY), h.z);
+}
+
 function applyScene() {
   const isPhoto = settings.scene === 'photo' && !!photo;
+  document.getElementById('scene').value = isPhoto ? 'photo' : 'grid';
   if (photo) photo.visible = isPhoto;
   room.visible = meatball.visible = !isPhoto;
   renderer.setClearColor(isPhoto ? 0x000000 : 0x07080b);
@@ -692,6 +783,13 @@ function layout() {
   layoutPhoto();
 }
 layout();
+if (window.SCENE) {
+  setPhoto(window.SCENE);
+} else {
+  sceneStore('readonly', st => st.get('current'))
+    .then(text => text && setPhoto(parseScene(text)))
+    .catch(() => {});
+}
 applyScene();
 addEventListener('resize', layout);
 
@@ -761,6 +859,8 @@ async function startTracking() {
     }
     startBtn.textContent = 'Head tracking on';
     setStatus('Tracking. Move your head!', 'ok');
+    keepAwake();
+    if (isPhone) panel.classList.add('hidden');
   } catch (err) {
     console.error(err);
     startBtn.disabled = false;
@@ -768,6 +868,15 @@ async function startTracking() {
   }
 }
 startBtn.addEventListener('click', startTracking);
+
+// Stop the screen from dimming while the camera drives the view.
+let wakeLock = null;
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && wakeLock?.released) keepAwake();
+});
 
 // Returns the head position in scene space (cm, relative to the screen centre),
 // or null if no face was found in the latest webcam frame.
@@ -826,6 +935,25 @@ for (const [key, el] of Object.entries(inputs)) {
     if (key === 'showcam') video.classList.toggle('visible', settings.showcam && !!video.srcObject);
   });
 }
+document.getElementById('toggle').addEventListener('click', () => panel.classList.toggle('hidden'));
+document.getElementById('load').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = parseScene(text);
+    settings.scene = 'photo';
+    settings.framing = data.focus ?? 0.5;
+    inputs.framing.value = settings.framing;
+    saveSettings();
+    setPhoto(data);
+    try { await sceneStore('readwrite', st => st.put(text, 'current')); } catch {}
+    setStatus(`Loaded ${file.name}.`, 'ok');
+  } catch (err) {
+    setStatus(`Couldn't load ${file.name}: ${err.message}`, 'err');
+  }
+});
 addEventListener('keydown', e => {
   if (e.target instanceof HTMLInputElement) return;
   const k = e.key.toLowerCase();
@@ -849,6 +977,7 @@ const clock = new THREE.Clock();
 let recordedHead = null;
 if (recording) {
   panel.classList.add('hidden');
+  document.getElementById('toggle').hidden = true;
   window.setHead = (x, y, z) => { recordedHead = new THREE.Vector3(x, y, z); };
 }
 
@@ -884,7 +1013,7 @@ renderer.setAnimationLoop(() => {
   meatball.rotation.x = Math.sin(t * 0.21) * 0.15;
   meatball.position.y = meatball.userData.baseY + Math.sin(t * 0.8) * size.h * 0.015;
 
-  applyOffAxis(head, size.w, size.h);
+  applyOffAxis(photo?.visible ? limitForPhoto(head) : head, size.w, size.h);
   renderer.render(scene, camera);
 });
 </script>

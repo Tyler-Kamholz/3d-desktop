@@ -27,6 +27,27 @@ Then:
 
 Without a webcam, the view follows your mouse.
 
+## On a phone (or any device, via GitHub Pages)
+
+The camera only works on a page served over HTTPS, so host it with GitHub Pages:
+
+1. In the repo on GitHub, go to **Settings → Pages**.
+2. Under **Build and deployment**, set **Source** to *Deploy from a branch*. Pick the branch and the
+   `/ (root)` folder, then click **Save**.
+3. After a minute, open `https://<your-user>.github.io/3d-desktop/` on your phone.
+
+Photo scenes aren't in the repo, so they aren't on the site either. To use one:
+
+1. Tap **Load photo scene…** and pick a scene file. That can be a `.scene.json` from `make_scene.py --json`,
+   a `scene.js`, or a standalone `.html`.
+2. The scene stays on your device: the page keeps it in the browser's storage and reloads it
+   next time.
+3. Tap **Start head tracking** and allow camera access. Hold the phone at a comfortable reading
+   distance and move your head.
+
+On phones the defaults change to a 6.1" screen, a 30 cm viewing distance and the narrower field of
+view of a front camera. Tap **Settings** to adjust them.
+
 ## Use your own photo
 
 `tools/make_scene.py` turns a photo into a 3D scene. It works best with a clear subject
@@ -34,7 +55,7 @@ in front of a background.
 
 ```sh
 pip install torch transformers pillow opencv-python-headless numpy
-python tools/make_scene.py my-photo.jpg --focus 0.55 --standalone my-photo.standalone.html
+python tools/make_scene.py my-photo.jpg --focus 0.55 --standalone my-photo.standalone.html --json my-photo.scene.json
 ```
 
 The script:
@@ -49,7 +70,7 @@ The script:
 `--focus` sets the vertical point of interest: 0 is the top of the photo and 1 is the bottom.
 `--threshold` sets how near something has to be to count as foreground (default 0.5).
 
-`scene.js` and `*.standalone.html` are git-ignored so personal photos stay out of the repo.
+`scene.js`, `*.standalone.html` and `*.scene.json` are git-ignored so personal photos stay out of the repo.
 
 With a photo loaded, the panel adds:
 

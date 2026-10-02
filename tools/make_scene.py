@@ -2,6 +2,7 @@
 
     python tools/make_scene.py photo.jpg                 # writes scene.js next to index.html
     python tools/make_scene.py photo.jpg --standalone beach.html
+    python tools/make_scene.py photo.jpg --json beach.scene.json   # for "Load photo scene…"
 
 Steps:
   1. Depth Anything V2 estimates relative (inverse) depth for every pixel.
@@ -133,6 +134,7 @@ def main():
     ap.add_argument("photo")
     ap.add_argument("--out", default=str(ROOT / "scene.js"))
     ap.add_argument("--standalone", help="also write a single self-contained HTML file")
+    ap.add_argument("--json", help="also write the scene as JSON, for the page's Load photo scene button")
     ap.add_argument("--threshold", type=float, default=0.5,
                     help="relative depth (0 = far, 1 = near) that separates foreground from background")
     ap.add_argument("--focus", type=float, default=0.5,
@@ -164,9 +166,14 @@ def main():
         "background": data_uri(bg, "JPEG"),
         "depth": data_uri(packed, "PNG"),
     }
-    js = f"window.SCENE = {json.dumps(scene)};\n"
+    scene_json = json.dumps(scene)
+    js = f"window.SCENE = {scene_json};\n"
     pathlib.Path(args.out).write_text(js)
     print(f"Wrote {args.out} ({len(js) / 1e6:.1f} MB)")
+
+    if args.json:
+        pathlib.Path(args.json).write_text(scene_json)
+        print(f"Wrote {args.json}")
 
     if args.standalone:
         html = (ROOT / "index.html").read_text()
