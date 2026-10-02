@@ -2,8 +2,8 @@
 
 Turns your monitor into a window onto a 3D scene: either your own photo
 (converted to layered depth) or a built-in grid room. Your webcam tracks your head and the
-view is re-projected from where your eyes are, so the orange grid room and the furry
-"meatball" look like they sit *behind* the glass. It's a browser take on a
+view is re-projected from where your eyes are, so the scene looks like it sits *behind*
+the glass. The grid room, with its furry "meatball", is a browser take on a
 head-coupled-perspective TouchDesigner demo (subsurface-ish fur shader included).
 
 ## Run it
