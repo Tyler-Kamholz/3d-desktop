@@ -1,0 +1,3 @@
+# Generated photo scenes contain personal photos; keep them out of the repo.
+scene.js
+*.standalone.html

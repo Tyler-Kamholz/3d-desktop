@@ -1,6 +1,7 @@
 # 3d-desktop
 
-Turns your monitor into a window onto a 3D room. Your webcam tracks your head and the
+Turns your monitor into a window onto a 3D scene: either your own photo
+(converted to layered depth) or a built-in grid room. Your webcam tracks your head and the
 view is re-projected from where your eyes are, so the orange grid room and the furry
 "meatball" look like they sit *behind* the glass. It's a browser take on a
 head-coupled-perspective TouchDesigner demo (subsurface-ish fur shader included).
@@ -25,6 +26,37 @@ Then:
 4. Sit about an arm's length away and move your head around.
 
 Without a webcam, the view follows your mouse.
+
+## Use your own photo
+
+`tools/make_scene.py` turns a photo into a 3D scene. It works best with a clear subject
+in front of a background.
+
+```sh
+pip install torch transformers pillow opencv-python-headless numpy
+python tools/make_scene.py my-photo.jpg --focus 0.55 --standalone my-photo.standalone.html
+```
+
+The script:
+
+1. Estimates depth with Depth Anything V2.
+2. Cuts out the nearest subject.
+3. Fills in what's behind the subject with LaMa inpainting, so moving your head reveals plausible
+   background instead of a smear.
+4. Writes `scene.js`, which `index.html` loads automatically. With `--standalone`, it also writes a
+   single HTML file you can double-click.
+
+`--focus` sets the vertical point of interest: 0 is the top of the photo and 1 is the bottom.
+`--threshold` sets how near something has to be to count as foreground (default 0.5).
+
+`scene.js` and `*.standalone.html` are git-ignored so personal photos stay out of the repo.
+
+With a photo loaded, the panel adds:
+
+- **Scene:** switch between the photo and the grid room.
+- **Photo depth:** how far behind the screen the farthest part of the photo sits. Higher means more
+  parallax, but you'll see the edges sooner.
+- **Framing:** which part of a tall photo fills a wide screen.
 
 ## Tuning
 
